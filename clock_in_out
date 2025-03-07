@@ -1,0 +1,58 @@
+import win32com.client
+import schedule
+import time
+import datetime
+
+# 初始化 Outlook
+outlook = win32com.client.Dispatch("Outlook.Application")
+namespace = outlook.GetNamespace("MAPI")
+
+# 邮件主题
+EMAIL_SUBJECT = "XXX - Clock In/Clock Out"
+RECIPIENT = "manager@example.com"  # 替换为你的经理或 HR 邮箱
+
+def send_clock_in_email():
+    """周一 9:00 AM 发送新的打卡邮件"""
+    mail = outlook.CreateItem(0)  # 创建新邮件
+    mail.To = RECIPIENT
+    mail.Subject = EMAIL_SUBJECT
+    mail.Body = "Clock In - 9:00 AM"
+    mail.Send()
+    print("Clock In - 9:00 AM 邮件已发送！")
+
+def reply_last_email(reply_text):
+    """找到当天最新的打卡邮件并回复"""
+    inbox = namespace.GetDefaultFolder(6)  # 6 代表 "收件箱"
+    sent_items = namespace.GetDefaultFolder(5)  # 5 代表 "已发送邮件"
+
+    # 获取今天已发送的邮件列表
+    messages = sent_items.Items
+    messages.Sort("[ReceivedTime]", True)  # 按时间降序排序
+
+    today = datetime.datetime.now().date()
+    last_email = None
+
+    for msg in messages:
+        sent_date = msg.SentOn.date()
+        if sent_date == today and EMAIL_SUBJECT in msg.Subject:
+            last_email = msg
+            break
+
+    if last_email:
+        reply_mail = last_email.Reply()  # 回复邮件
+        reply_mail.Body = f"{reply_text}\n\nBest regards,\nRuolin Liu\n\n" + reply_mail.Body
+        reply_mail.Send()
+        print(f"{reply_text} 邮件已发送！")
+    else:
+        print("未找到今天的打卡邮件，无法回复。")
+
+# 设置定时任务
+schedule.every().monday.at("09:00").do(send_clock_in_email)  # 早上 9:00 上班
+schedule.every().monday.at("13:00").do(reply_last_email, "Clock Out - 1:00 PM")  # 午休 1:00 PM
+schedule.every().monday.at("13:30").do(reply_last_email, "Clock In - 1:30 PM")  # 午休结束 1:30 PM
+schedule.every().monday.at("18:30").do(reply_last_email, "Clock Out - 6:30 PM")  # 下班 6:30 PM
+
+# 持续运行任务
+while True:
+    schedule.run_pending()
+    time.sleep(60)  # 每分钟检查一次
